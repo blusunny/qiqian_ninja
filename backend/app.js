@@ -6,8 +6,9 @@ const Router = require('@koa/router');
 const body = require('koa-body');
 const serve = require('koa-static');
 const User = require('./src/service/user');
-const Content = require('./src/service/Content')
+const Content = require('./src/service/Content');
 const packageJson = require('./package.json');
+const { sendWxpusherMessage } = require('./src/util/wxpusher'); // 引入 WxPusher 模块
 
 // Create express instance
 const app = new Koa();
@@ -38,6 +39,20 @@ router.get('/api/status', (ctx) => {
     };
 });
 
+// 用户注册，发送 WxPusher 通知
+router.post('/api/register', body(), async (ctx) => {
+    const user = new User(ctx.request.body);
+    ctx.body = await user.register();
+
+    // 发送 WxPusher 通知
+    if (ctx.body.code === 200) { // 注册成功
+        const uid = ctx.request.body.uid; // 获取用户的 WxPusher UID
+        const content = `用户 ${user.username} 注册成功！`;
+        sendWxpusherMessage(content, uid); // 发送通知
+    }
+});
+
+// 其他路由
 router.get('/api/info', async (ctx) => {
     ctx.body = await User.getPoolInfo();
 });
@@ -46,14 +61,9 @@ router.post('/api/login', body(), async (ctx) => {
     ctx.body = await new User(ctx.request.body).login()
 });
 
-router.post('/api/register', body(), async (ctx) => {
-    ctx.body = await new User(ctx.request.body).register();
-});
-
 router.get('/api/userinfo', async (ctx) => {
     ctx.body = await new User({eid: ctx.query.eid, encryptUsername: ctx.query.encryptUsername}).getUserInfoByEid();
 });
-
 
 router.post('/api/delete', body(), async (ctx) => {
     ctx.body = await new User({eid: ctx.request.body.eid}).delUserByEid();
@@ -73,7 +83,6 @@ router.post('/api/disable', body(), async (ctx) => {
     ctx.body = await new User({eid}).disableEnv();
 });
 
-
 router.post('/api/enable', body(), async (ctx) => {
     const body = ctx.request.body;
     const eid = body.eid;
@@ -86,11 +95,9 @@ router.post('/api/verifyToken', body(), async (ctx) => {
     ctx.body = await new User({token}).verifyToken();
 });
 
-
 router.get('/api/getContent', async (ctx) => {
     ctx.body = await Content.getAllContent()
 });
-
 
 router.post('/api/setContent', body(), async (ctx) => {
     const body = ctx.request.body;
@@ -103,13 +110,10 @@ router.get('/api/getAllConfig', async (ctx) => {
     ctx.body = await new User({token}).getAllConfig();
 });
 
-
-
 router.post('/api/saveConfig', body(), async (ctx) => {
     const body = ctx.request.body;
     ctx.body = await new User({token: body.token}).saveConfig(body);
 });
-
 
 const port = process.env.NINJA_PORT || 5701;
 console.log('Start Ninja success! listening port: ' + port);
